@@ -1237,26 +1237,40 @@ export class CdkTable<T>
    * definition.
    */
   _getRowDefs(data: T, dataIndex: number): CdkRowDef<T>[] {
-    if (this._rowDefs.length == 1) {
-      return [this._rowDefs[0]];
-    }
-
-    let rowDefs: CdkRowDef<T>[] = [];
-    if (this.multiTemplateDataRows) {
-      rowDefs = this._rowDefs.filter(def => !def.when || def.when(dataIndex, data));
-    } else {
-      let rowDef =
-        this._rowDefs.find(def => def.when && def.when(dataIndex, data)) || this._defaultRowDef;
-      if (rowDef) {
-        rowDefs.push(rowDef);
-      }
-    }
-
+    const rowDefs = this.getRowDefsFrom(dataIndex, data, this._rowDefs);
     if (!rowDefs.length && (typeof ngDevMode === 'undefined' || ngDevMode)) {
       throw getTableMissingMatchingRowDefError(data);
     }
-
     return rowDefs;
+  }
+
+  /**
+   * getRowDefs([], i, d)=[]
+   * getRowDefs([e], i, d)=[e]
+   * getRowDefs(e*S, i, d)= getMultiplesRowDefs(e*S, i, d)
+   * getMultiplesRowDefs([e], i, d) = si e.when !== undefined || e.when(i, data)
+   *                                       alors [e] sinon []
+   * getMultiplesRowDefs(e*S, i, d) = soit r = getMultiplesRowDefs(S, i, d)
+   *                                    si e.when !== undefined || e.when(i, data)
+   *                                      alors e°r sinon r
+   */
+  private getRowDefsFrom(dataIndex: number, data: T, rowDefs: CdkRowDef<T>[]): CdkRowDef<T>[] {
+    if (rowDefs.length <= 1) {
+      return [...rowDefs];
+    }
+    return this.getMultiRowDefs(dataIndex, data, rowDefs);
+  }
+  private getMultiRowDefs(dataIndex: number, data: T, rowDefs: CdkRowDef<T>[]): CdkRowDef<T>[] {
+    if (rowDefs.length === 1) {
+      return rowDefs[0].when === undefined || rowDefs[0].when(dataIndex, data) ? [...rowDefs] : [];
+    }
+    const IsIn = (defs: CdkRowDef<T>[]) => {
+      return rowDefs[0].when === undefined || rowDefs[0].when(dataIndex, data)
+        ? [rowDefs[0], ...defs]
+        : defs;
+    };
+
+    return IsIn(this.getMultiRowDefs(dataIndex, data, rowDefs.slice(1)));
   }
 
   private _getEmbeddedViewArgs(
